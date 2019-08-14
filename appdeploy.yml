@@ -1,63 +1,112 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: app
-  namespace: "env-b"
+  name: tenantonenamespace
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant1-compute-quota
+  namespace: tenantonenamespace
 spec:
-  replicas: 3
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 2
-      maxSurge: 2
-  selector:
-    matchLabels:
-      app: app
-  template:
-    metadata:
-      labels:
-        app: app
-    spec:
-      containers:
-        - name: app
-          image: CONTAINER_IMAGE
-          securityContext:
-            privileged: false
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-          ports:
-            - containerPort: 8080
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: "app"
-  namespace: "env-b"
+  name: tenant1app
+  namespace: tenantonenamespace
 spec:
-  ports:
-    - port: 80
-      targetPort: 80
-      protocol: TCP
-  type: NodePort
   selector:
-    app: "app"
+    app: tenant1app
+  type: NodePort
+  ports:
+   -  protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant1app
+  labels:
+    app: tenant1app
+  namespace: tenantonenamespace
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tenant1app
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: tenant1app
+    spec:
+      containers:
+      - image: CONTAINER_IMAGE
+        imagePullPolicy: Always
+        name: tenant1app
+        resources:
+          requests:
+            cpu: 200m
+            memory: 0.5Gi
+          limits:
+            cpu: 400m
+            memory: 1Gi
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        env:
+        - name: KEYDATA
+          value: "ValueData"
+      nodeSelector:
+          nodegroup-type: frontend-workloads-aw
 ---
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: "app"
-  namespace: "env-b"
+  name: tenant1-ingress
+  namespace: tenantonenamespace
   annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=14400
   labels:
-    app: app
+    app: tenant1-ingress
 spec:
   rules:
     - http:
         paths:
           - path: /*
             backend:
-              serviceName: "app"
+              serviceName: tenant1app
               servicePort: 80
 ---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tenant1app
+  namespace: tenantonenamespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tenant1app
+  minReplicas: 3
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50
