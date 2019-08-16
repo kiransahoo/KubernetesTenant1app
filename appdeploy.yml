@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: CONTAINER_IMAGE
+          image: 142269675036.dkr.ecr.us-west-2.amazonaws.com/eksws-ecrdo-c03ogi28rm9b:KubernetesTenant1app.master..2019-08-15.00.09.40.f99e06b9
           resources:
             requests:
               cpu: 200m
