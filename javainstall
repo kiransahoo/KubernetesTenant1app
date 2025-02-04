@@ -1,0 +1,14 @@
+# Install SDKMAN! first
+curl -s "https://get.sdkman.io" | bash
+
+# Restart terminal or run
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+# Install Java 17
+sdk install java 17.0.9-tem
+
+# List available versions
+sdk list java
+
+# Set as default
+sdk default java 17.0.9-tem
